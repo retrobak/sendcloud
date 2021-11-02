@@ -12,6 +12,7 @@ use JouwWeb\SendCloud\Exception\SendCloudWebhookException;
 use JouwWeb\SendCloud\Model\Address;
 use JouwWeb\SendCloud\Model\Parcel;
 use JouwWeb\SendCloud\Model\ParcelItem;
+use JouwWeb\SendCloud\Model\ParcelCollection;
 use JouwWeb\SendCloud\Model\SenderAddress;
 use JouwWeb\SendCloud\Model\ShippingMethod;
 use JouwWeb\SendCloud\Model\User;
@@ -162,6 +163,7 @@ class Client
      * @param int|null One of {@see Parcel::CUSTOMS_SHIPMENT_TYPES}.
      * @param ParcelItem[]|null $items Items contained in the parcel.
      * @param string|null $postNumber Number that may be required to send to a service point.
+     * @param int|null $quantity Colli quantity
      * @return Parcel
      * @throws SendCloudRequestException
      */
@@ -173,7 +175,8 @@ class Client
         ?string $customsInvoiceNumber = null,
         ?int $customsShipmentType = null,
         ?array $items = null,
-        ?string $postNumber = null
+        ?string $postNumber = null,
+        ?int $quantity = null
     ): Parcel {
         $parcelData = $this->getParcelData(
             null,
@@ -187,7 +190,8 @@ class Client
             $customsInvoiceNumber,
             $customsShipmentType,
             $items,
-            $postNumber
+            $postNumber,
+            $quantity
         );
 
         try {
@@ -259,6 +263,69 @@ class Client
     }
 
     /**
+     * @param Address $shippingAddress
+     * @param int|null $servicePointId
+     * @param string|null $orderNumber
+     * @param int|null $weight
+     * @param string|null $customsInvoiceNumber
+     * @param int|null $customsShipmentType
+     * @param array|null $items
+     * @param string|null $postNumber
+     * @param ShippingMethod|int $shippingMethod
+     * @param SenderAddress|int|Address|null $senderAddress Passing null will pick Sendcloud's default. An Address will
+     * @return ParcelCollection
+     * @throws SendCloudRequestException
+     */
+    public function createParcelsWithLabels(
+        Address $shippingAddress,
+        ?int $servicePointId,
+        ?string $orderNumber = null,
+        ?int $weight = null,
+        ?string $customsInvoiceNumber = null,
+        ?int $customsShipmentType = null,
+        ?array $items = null,
+        ?string $postNumber = null,
+        $shippingMethod,
+        $senderAddress,
+        $quantity
+    )
+    {
+        $parcelData = $this->getParcelData(
+            null,
+            $shippingAddress,
+            $servicePointId,
+            $orderNumber,
+            $weight,
+            true,
+            $shippingMethod,
+            $senderAddress,
+            $customsInvoiceNumber,
+            $customsShipmentType,
+            $items,
+            $postNumber,
+            $quantity
+        );
+
+        try {
+            $response = $this->guzzleClient->post('parcels', [
+                'json' => [
+                    'parcels' => [$parcelData],
+                ],
+            ]);
+
+            $parcelsResponse = json_decode((string)$response->getBody(), true)['parcels'];
+
+            $parcelCollection = new ParcelCollection();
+            foreach ($parcelsResponse as $parcel) {
+                $parcelCollection->addParcel(new Parcel($parcel));
+            }
+            return $parcelCollection;
+        } catch (TransferException $exception) {
+            throw $this->parseGuzzleException($exception, 'Could not create parcel in Sendcloud.');
+        }
+    }
+
+    /**
      * Update details of an existing parcel.
      *
      * @param Parcel|int $parcel
@@ -317,6 +384,7 @@ class Client
             true,
             $shippingMethod,
             $senderAddress,
+            null,
             null,
             null,
             null,
@@ -547,7 +615,8 @@ class Client
         ?string $customsInvoiceNumber,
         ?int $customsShipmentType,
         ?array $items,
-        ?string $postNumber
+        ?string $postNumber,
+        ?int $quantity
     ): array {
         $parcelData = [];
 
@@ -589,6 +658,10 @@ class Client
 
         if ($customsInvoiceNumber) {
             $parcelData['customs_invoice_nr'] = $customsInvoiceNumber;
+        }
+
+        if ($quantity) {
+            $parcelData['quantity'] = $quantity;
         }
 
         if ($customsShipmentType !== null) {
