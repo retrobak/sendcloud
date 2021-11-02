@@ -246,7 +246,8 @@ class Client
             $customsInvoiceNumber,
             $customsShipmentType,
             $items,
-            $postNumber
+            $postNumber,
+            null
         );
 
         try {
