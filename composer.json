@@ -9,12 +9,13 @@
         "parcel",
         "webhook"
     ],
+    "homepage": "https://github.com/Webador/sendcloud",
     "type": "library",
     "license": "MIT",
     "authors": [
         {
             "name": "Sjoerd Nuijten",
-            "email": "sjoerd@jouwweb.nl"
+            "email": "sjoerd@webador.com"
         }
     ],
     "autoload": {
